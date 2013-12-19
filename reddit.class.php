@@ -38,41 +38,55 @@
 			}
 		}
 		
-		/**
-		*	Vote on a Reddit "thing"
+		/*
+		*	Changes an array into GET parameters
 		*
-		*	@param string	$id		The id of the what thing you are voting on
-		*	@param int		$dir	Direction to vote (-1,0,1)
-		*
-		*	@return	object
-		*/
-		public function vote($id,$dir) {
-			return $this->curl($this->api."vote","id=$id&dir=$dir&uh=$this->uh",$this->cookie);
-		}
-		
-		/**
-		*	Get information about a Reddit users posting/commenting history
-		*
-		*	@param	string	$username	Username
+		*	@param	array	$arr	An array that gets returned in GET parameter format
 		*
 		*	@return	object
 		*/
-		public function user($username) {
-			return $this->curl($this->reddit.'user/'.$username.".json",array(),$this->cookie);
+		private function buildGETQuery($arr) {
+			
+			$string = "";
+			$i = 0;
+					
+			foreach($arr as $key => $var) {
+				$string .= (($i > 0) ? "&" : "")."$key=".urlencode($var);
+				$i++;
+			}
+			return $string;
 		}
 		
 		/**
-		*	Get an overview for a user
-		*
-		*	@param	string	$username	Username
-		*	@param	string	$params		Additional GET parameters to set
+		*	Used to comment on a "thing"
+		*	
+		*	@param	string	$thing		The thing id
+		*	@param	string	$comment	The comment to be made
 		*
 		*	@return	object
 		*/
-		public function user_overview($username,$params = '') {
-			return $this->curl($this->reddit.'user/'.$username."/overview.json?".$params,array(),$this->cookie);
+		public function comment($thing,$comment) {
+			return $this->curl($this->api."comment","thing_id=$thing&uh=$this->uh&text=".urlencode($comment),$this->cookie);
 		}
 		
+		/**
+		*	Dumps the class (used mostly for testing)
+		*/
+		public function dump() {
+			print_r($this);
+		}
+		
+		/**
+		*	Edit text of a "thing"
+		*
+		*	@param string	$thing		The thing id
+		*	@param string	$comment	The updated comment
+		*
+		*	@return object
+		*/
+		public function edit($thing,$comment) {
+			return $this->curl($this->api."editusertext","thing_id=$thing&uh=$this->uh&text=".urlencode($comment),$this->cookie);
+		}
 		
 		/**
 		*	Get a subreddit page
@@ -87,8 +101,16 @@
 			return $this->curl($this->reddit.$page.".json?limit=".$limit,array(),$this->cookie);
 		}
 		
-		public function submitted($username) {
-			return $this->curl($this->reddit.'user/'.$username."/submitted.json".$query,array(),$this->cookie);
+		/*
+		*	Search SubReddits
+		*
+		*	@param	string	$subreddit	The subreddit to search
+		*	@param	array	$params		GET parameters to use in the search
+		*
+		*	@return	object
+		*/
+		public function search($subreddit = 'RussianRouletteBot',$params = array()) {
+			return $this->curl($this->reddit."r/".$subreddit."/search.json?".$this->buildGETQuery($params),array());
 		}
 		
 		/**
@@ -118,37 +140,45 @@
 			return $this->curl($this->api."submit",$postParams,$this->cookie,"POST");
 		}
 		
+		public function submitted($username) {
+			return $this->curl($this->reddit.'user/'.$username."/submitted.json".$query,array(),$this->cookie);
+		}
+		
 		/**
-		*	Used to comment on a "thing"
-		*	
-		*	@param	string	$thing		The thing id
-		*	@param	string	$comment	The comment to be made
+		*	Get information about a Reddit users posting/commenting history
+		*
+		*	@param	string	$username	Username
 		*
 		*	@return	object
 		*/
-		public function comment($thing,$comment) {
-			return $this->curl($this->api."comment","thing_id=$thing&uh=$this->uh&text=".urlencode($comment),$this->cookie);
+		public function user($username) {
+			return $this->curl($this->reddit.'user/'.$username.".json",array(),$this->cookie);
 		}
 		
 		/**
-		*	Edit text of a "thing"
+		*	Get an overview for a user
 		*
-		*	@param string	$thing		The thing id
-		*	@param string	$comment	The updated comment
+		*	@param	string	$username	Username
+		*	@param	array	$params		Additional GET parameters to set
 		*
-		*	@return object
+		*	@return	object
 		*/
-		public function edit($thing,$comment) {
-			return $this->curl($this->api."editusertext","thing_id=$thing&uh=$this->uh&text=".urlencode($comment),$this->cookie);
+		public function user_overview($username,$params = array()) {
+			return $this->curl($this->reddit.'user/'.$username."/overview.json?".$this->buildGETQuery($params),array(),$this->cookie);
 		}
 		
 		/**
-		*	Dumps the class (used mostly for testing)
+		*	Vote on a Reddit "thing"
+		*
+		*	@param string	$id		The id of the what thing you are voting on
+		*	@param int		$dir	Direction to vote (-1,0,1)
+		*
+		*	@return	object
 		*/
-		public function dump() {
-			print_r($this);
+		public function vote($id,$dir) {
+			return $this->curl($this->api."vote","id=$id&dir=$dir&uh=$this->uh",$this->cookie);
 		}
-	 
+		
 		/**
 		*	Makes a call to Reddit via CURL
 		*
