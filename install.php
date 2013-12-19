@@ -37,7 +37,7 @@
     *	Able to have length 2 of chambers, sure!
     */
 	if(!in_array('games',$tablesList)) {
-        $STH = $db->DBH->prepare("CREATE TABLE `games` (`thing_id` VARCHAR(10) NOT NULL, `playerTurn` SMALLINT(2) NOT NULL default 0, `chambersAway` SMALLINT(2) NOT NULL default 0, `created` TIMESTAMP NOT NULL default '0000-00-00 00:00:00', `lastActivity` TIMESTAMP NOT NULL default '0000-00-00 00:00:00', PRIMARY KEY(thing_id) );");
+        $STH = $db->DBH->prepare("CREATE TABLE `games` (`thing_id` VARCHAR(10) NOT NULL, `playerTurn` SMALLINT(2) NOT NULL default 0, `chambersAway` SMALLINT(2) NOT NULL default 0, `lastComment` VARCHAR(10) NOT NULL, `created` TIMESTAMP NOT NULL default '0000-00-00 00:00:00', `lastActivity` TIMESTAMP NOT NULL default '0000-00-00 00:00:00', PRIMARY KEY(thing_id) );");
         if(!$STH->execute()) {
 	        die('Failed to create games table');
         }

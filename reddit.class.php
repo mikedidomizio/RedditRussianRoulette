@@ -10,8 +10,8 @@
 		private $cacheCookie = true;
 		
 		/**
-		*	@param string	user	username associated with Reddit account
-		*	@param string	pass	password associated with Reddit account
+		*	@param string	$user	username associated with Reddit account
+		*	@param string	$pass	password associated with Reddit account
 		*/
 		function __construct($user = NULL,$pass = NULL) {
 			
@@ -33,7 +33,7 @@
 						setcookie("Reddit-".$this->user, $this->cookie, time()+300);
 					}
 				}
-			}else{
+			} else {
 				echo 'Username or Password left empty';
 			}
 		}
@@ -86,6 +86,14 @@
 		*/
 		public function edit($thing,$comment) {
 			return $this->curl($this->api."editusertext","thing_id=$thing&uh=$this->uh&text=".urlencode($comment),$this->cookie);
+		}
+		
+		public function messages($type = "unread",$params = array()) {
+			return $this->curl($this->reddit."message/$type.json?".$this->buildGETQuery($params),array(),$this->cookie);
+		}
+		
+		public function messagesRead($thing_id) {
+			return $this->curl($this->api."read_message",array('id'=>$thing_id,'uh'=>$this->uh),$this->cookie,'POST');
 		}
 		
 		/**

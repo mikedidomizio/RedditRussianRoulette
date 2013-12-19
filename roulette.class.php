@@ -13,12 +13,19 @@
 		private $gameCreatedMessages = array(
 			'Alright boys let\'s do this!',
 			'Game created!',
-			'Y\'all ready for this?'
+			'Y\'all ready for this?',
+			'Ante Up!',
+			'Lets rock!'
 		);
-		
+			
 		private $minUsers = 2;
 		private $maxUsers = 10;
 		private $numberOfChambers = 6;
+		private $startComments = array(
+			'is not afraid',
+			'is feeling lucky',
+			'isn\'t scared'
+		);
 		
 		/**
 		*	Make the database connection and then call the parent construct and make a reddit connection
@@ -29,6 +36,32 @@
 				$this->db = new \db\db();
 			};
 			parent::__construct($user,$pass);
+		}
+		
+		/**
+		*	The current user has made an action, we do the work and decide if they keep going on
+		*
+		*	@param	string	$action			fire|spin
+		*	@param	string	$thing_id		Reddit thing_id
+		*	@param	string	$commentId		$comment ID to respond to
+		*	@params	int		$chambersAway	The number of chambers until it fires
+		*/
+		private function action($action = NULL,$thing_id,$commentId,$username,$chambersAway = 6) {
+
+			switch($action) {
+				case "fire" : $this->fire($thing_id,$commentId,$username,$chambersAway);
+					break;
+				case "spin" : 
+						//we spin the barrel and then fire twice
+						$this->spin($thing_id);
+						
+						if($this->fire($thing_id,$commentId,$username,$chambersAway)) {
+							//the gun didn't go off, we do it again
+							$this->fire($thing_id,$commentId,$username,$chambersAway);
+						}
+					break;
+				default : return false;
+			}
 		}
 		
 		/*
@@ -100,7 +133,22 @@
 								//we need to choose a random game generated message
 								$num = rand(0,sizeof($this->gameCreatedMessages) - 1);
 								
-								$this->comment($data->name,$this->gameCreatedMessages[$num]."\n\nThe first person to go is.......... $users[$playerTurn]! $playerList");
+								try {
+									$returned = $this->comment($data->name,$this->gameCreatedMessages[$num]."\n\nThe first person to go is.......... $users[$playerTurn]! $playerList");
+									
+									//reddit callback is weird...
+									$commentId = $returned->jquery[18][3][0][0]->data->id;
+									
+									if(!empty($commentId)) {
+									//we update the table with the last comment made, which at this point is the bots
+										$this->updateLastCommentThing($data->name,$commentId);
+									}
+
+								} catch (Exception $e) {
+									die('Error with getting the comment id');
+								}
+								//print_r($returned);
+								
 							} else {
 								//error when creating game
 								$this->comment($data->name,"There was an error creating the game or the bot tried to create the game twice, please PM /u/mikedidomizio with this thread");
@@ -116,6 +164,89 @@
 			}
 		}
 		
+		/**
+		*	Checks for updates in games that are going
+		*/
+		public function checkForUpdates() {
+		
+			//get active games and get the player that is up next
+			$STH = $this->db->DBH->prepare("SELECT games.thing_id, playerTurn, username, chambersAway, lastComment 
+					FROM games
+					INNER JOIN usersInGame ON games.playerTurn = playerNumber AND games.thing_id = usersInGame.thing_id
+					ORDER BY lastActivity DESC LIMIT 30");
+			$STH->execute();
+			$results = $STH->fetchAll(\PDO::FETCH_ASSOC);
+			
+			
+			$lastCommentsArr = array();
+			
+			foreach($results as $var) {
+				$lastCommentsArr[] = $var['lastComment'];
+			}
+			
+			$unreadMessages = $this->messages("unread");
+			if(!empty($unreadMessages)) {
+				foreach($unreadMessages->data->children as $key => $var) {
+
+					$data = $var->data;
+					
+					if($data->was_comment && $data->body) {
+						$author = $data->author;
+						$parent = $data->parent_id;
+						
+						//determine if it's an active game
+						if(in_array($parent,$lastCommentsArr)) {
+							
+							//determine if the person that is commenting is our next victi...person
+							$key = array_search($parent, $lastCommentsArr);
+
+							if($key >= 0 && $results[$key]['username'] === $author) {
+								$comment = strtolower($data->body);
+								//either we fire or spin!
+								preg_match('/(fire|spin)/',$comment,$matches);
+								
+								if(sizeof($matches) == 2 && ($matches[1] === 'fire' || $matches[1] === 'spin')) {
+									$this->action($matches[1],$results[$key]['thing_id'],$data->name,$author,$results[$key]['chambersAway']);
+								}
+							}
+							
+						}
+					}
+
+					echo '<br/><br/><br/><br/>';
+				}
+			}
+			//$this->messagesRead();
+		}
+		
+		/**
+		*	Used to comment on a "thing", calls comment method in reddit.class.php
+		*	
+		*	@param	string	$thing		The thing id
+		*	@param	string	$comment	The comment to be made
+		*	@param	bool	$add_footer	Adds the comment footer by default
+		*
+		*	@return	object
+		*/
+		public function comment($thing,$comment,$add_footer = true) {
+			
+			if($add_footer) {
+				$comment = $this->comment_footer($comment);
+			}
+			
+			return parent::comment($thing,$comment);
+		}
+		
+		/**
+		*	Adds a footer note to the comment, good to direct people
+		*
+		*	@param	string	comment		the original comment to add the footer to
+		*
+		*/
+		public function comment_footer($comment) {
+			return $comment . $this->footer;
+		}
+
 		/**
 		*	creates a game by thing_id
 		*
@@ -158,32 +289,7 @@
 			}
 			return -1;
 		}
-		
-		/**
-		*	Used to comment on a "thing", calls comment method in reddit.class.php
-		*	
-		*	@param	string	$thing		The thing id
-		*	@param	string	$comment	The comment to be made
-		*	@param	bool	$add_footer	Adds the comment footer by default
-		*
-		*	@return	object
-		*/
-		public function comment($thing,$comment,$add_footer = true) {
-			
-			if($add_footer) {
-				$comment = $this->comment_footer($comment);
-			}
-			
-			return parent::comment($thing,$comment);
-		}
-		
-		/*
-		*	Converts a unix date to datetime
-		*/
-		public function convertDate($date) {
-			return date("Y-m-d H:i:s", $date);
-		}
-		
+				
 		/**
 		*	Edit text of a "thing"
 		*
@@ -192,7 +298,7 @@
 		*
 		*	@return object
 		*/
-		public function edit($thing,$comment,$add_footer = true) {
+		public function edit($thing,$comment,$addFooter = true) {
 		
 			if($add_footer) {
 				$comment = $this->comment_footer($comment);
@@ -201,24 +307,63 @@
 			return parent::edit($thing,$comment);
 		}
 		
-		/*
-		*	Adds a footer note to the comment, good to direct people
+		/**
+		*	Fires the gun
 		*
-		*	@param	string	comment		the original comment to add the footer to
+		*	@param	string	$thing_id		The original thing_id from Reddit
+		*	@param	string	$commentId		The comment we will be replying to
+		*	@param	int		$chambersAway	The number of chambers until the gun goes off, if 0 it fires
 		*
 		*/
-		public function comment_footer($comment) {
-			return $comment . $this->footer;
+		private function fire($thing_id,$commentId,$username,$chambersAway) {
+			
+			if($chambersAway <= 0) {
+				// :(
+				return false;
+			}else {
+				//we lower the chamber number by 1 and comment on that, setting up the next person
+				$STH = $this->db->DBH->prepare("UPDATE `game` SET chambersAway = chambersAway - 1 WHERE thing_id = ?");
+				$STH->execute(array($thing_id));
+				
+				$this->comment($commentId,$this->getStartCommentAction($username).' *click*');
+				return true;
+			}
 		}
 		
 		/**
-		*	Inserts a user into the database
+		*	Builds the start of the comment when firing
 		*
+		*	@param	string	$username	The username associated with the action
 		*
+		*	@return	string	returns the string that will be inserted into the comment
 		*/
-		public function insertUser($id,$username) {
-			$STH = $this->db->DBH->prepare("INSERT INTO `users` (user_id,username) VALUES (?,?)");
-			$STH->execute(array($id,$username));
+		private function getStartCommentAction($username) {
+			return $username.' '.$this->startComments[rand(0,sizeof($this->startComments) -1)].'.........';
+		}
+		
+		/**
+		*	Spins the barrel
+		*
+		*	@param	string	$thing_id	Reddit thing_id
+		*/
+		private function spin($thing_id) {
+			$STH = $this->db->DBH->prepare("UPDATE `games` SET chambersAway = ? WHERE thing_id = ?");
+			//we pick a random number to set how many chambers it is away
+			$spin = rand(0,$this->numberOfChambers);
+			$STH->execute(array($spin,$thing_id));
+		}
+		
+		/**
+		*	Update the thread with the last comment id made
+		*
+		*	@param	string	$postId		the thread id
+		*	@param	string	$commentId	the id of the bots last comment
+		*/
+		private function updateLastCommentThing($postId,$commentId) {
+			$STH = $this->db->DBH->prepare("UPDATE `games` SET lastComment = :lastComment WHERE thing_id = :thing_id");
+			$STH->bindParam(':thing_id', $postId, \PDO::PARAM_STR, 12);
+			$STH->bindParam(':lastComment', $commentId, \PDO::PARAM_STR, 12);
+			$STH->execute();
 		}
 	}
 	
