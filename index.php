@@ -10,10 +10,8 @@
 	$username = 'RussianRouletteBot';
 	$pass = '';
 	
-	
 	$reddit = new roulette\roulette($username,$pass);
 
 	$reddit->checkForNewThreads();
-	
 	$reddit->checkForUpdates();
 	

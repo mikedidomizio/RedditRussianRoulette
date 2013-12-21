@@ -92,8 +92,10 @@
 			return $this->curl($this->reddit."message/$type.json?".$this->buildGETQuery($params),array(),$this->cookie);
 		}
 		
-		public function messagesRead($thing_id) {
-			return $this->curl($this->api."read_message",array('id'=>$thing_id,'uh'=>$this->uh),$this->cookie,'POST');
+		public function messagesRead($id) {
+			
+		
+			return $this->curl($this->api."read_message",array('id'=>$id,'uh'=>$this->uh),$this->cookie,'POST');
 		}
 		
 		/**
@@ -104,9 +106,12 @@
 		*
 		*	@return	object
 		*/
-		public function page($page = '',$limit = 100) {
+		public function page($page = '',$params) {
 			if($page != ''){$page = '/r/'.$page;};
-			return $this->curl($this->reddit.$page.".json?limit=".$limit,array(),$this->cookie);
+			
+			$params = $this->buildGETQuery($params);
+			
+			return $this->curl($this->reddit.$page.".json?$params",array(),$this->cookie);
 		}
 		
 		/*
@@ -117,7 +122,7 @@
 		*
 		*	@return	object
 		*/
-		public function search($subreddit = 'RussianRouletteBot',$params = array()) {
+		public function search($subreddit = '',$params = array()) {
 			return $this->curl($this->reddit."r/".$subreddit."/search.json?".$this->buildGETQuery($params),array());
 		}
 		
@@ -137,7 +142,7 @@
 			
 			//For safety
 			if(!array_key_exists('sr',$postParams) || empty($postParams['sr'])) {
-				$postParams['sr'] = 'RussianRouletteBot';
+				$postParams['sr'] = '';
 			}
 			
 			//if kind is not set or empty, we make it a self post
@@ -201,27 +206,23 @@
 			$ch = curl_init();
 			curl_setopt($ch, CURLOPT_URL, $url);
 			curl_setopt($ch, CURLOPT_HEADER, false);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 			
 			if($cookie != null) {
 				curl_setopt ($ch, CURLOPT_COOKIE, "reddit_session=".$cookie);
 			}
 			
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			
+			//for POST calls
 			if($type == "POST") {
-				
 				$params_string = "";
-			
 				foreach($params as $key=>$value) { $params_string .= $key.'='.$value.'&'; }
-				rtrim($params_string, '&');
-				
+				$params_string = rtrim($params_string, '&');
 				curl_setopt($ch,CURLOPT_POST, count($params));
-				curl_setopt($ch,CURLOPT_POSTFIELDS, $params_string);
-
-			} elseif ($type == "GET") {
-				if(!empty($params)) {
-					curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
-				}
+				$params = $params_string;
+			} 
+			
+			if(!empty($params)) {
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
 			}
 			
 			$d = json_decode(curl_exec($ch));
